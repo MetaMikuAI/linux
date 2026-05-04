@@ -5,6 +5,10 @@
  */
 #include <asm/asm-offsets.h>
 
+#ifndef VDSO_PRELINK_asm
+#define VDSO_PRELINK_asm 0
+#endif
+
 SECTIONS
 {
   . = VDSO_PRELINK_asm + SIZEOF_HEADERS;

@@ -58,7 +58,7 @@ targets += vsyscall-note_32.o vsyscall_32.lds
 
 # The DSO images are built using a special linker script.
 quiet_cmd_syscall = SYSCALL $@
-      cmd_syscall = $(CC) -m elf_i386 -nostdlib $(SYSCFLAGS_$(@F)) \
+      cmd_syscall = $(CC) -Wl,-m,elf_i386 -nostdlib $(SYSCFLAGS_$(@F)) \
 		          -Wl,-T,$(filter-out FORCE,$^) -o $@
 
 export CPPFLAGS_vsyscall_32.lds += -P -C -Ui386
@@ -84,5 +84,4 @@ SYSCFLAGS_vsyscall-syms.o = -r
 $(obj)/vsyscall-syms.o: $(src)/vsyscall_32.lds \
 			$(obj)/vsyscall-sysenter_32.o $(obj)/vsyscall-note_32.o FORCE
 	$(call if_changed,syscall)
-
 
