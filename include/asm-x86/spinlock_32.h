@@ -35,16 +35,17 @@ static inline int __raw_spin_is_locked(raw_spinlock_t *x)
 static inline void __raw_spin_lock(raw_spinlock_t *lock)
 {
 	asm volatile("\n1:\t"
-		     LOCK_PREFIX " ; decb %0\n\t"
-		     "jns 3f\n"
-		     "2:\t"
-		     "rep;nop\n\t"
-		     "cmpb $0,%0\n\t"
-		     "jle 2b\n\t"
-		     "jmp 1b\n"
-		     "3:\n\t"
+		     LOCK_PREFIX " ; decb %0\n\t"	// 原子自减锁变量 slock，b means byte，不过超过 127/255 的话会不会有问题（？）
+		     "jns 3f\n"	// 如果自减后结果非负(原先 slock>0)，说明锁未被占用，跳转到 3 即结束
+		     "2:\t"		// 锁被占用，进入等待循环
+		     "rep;nop\n\t"	// rep;nop = F3 90 = pause，表示 CPU 进行空操作，用于优化自旋锁等待时的功耗
+		     "cmpb $0,%0\n\t"	// 判断是否有线程释放了锁，b means byte
+		     "jle 2b\n\t"	// 如果锁仍被占用(slock<=0)，跳回 2 继续等待，其绝对值表示等待线程数，不过并不能依靠这个负值来判断等待线程的数量
+		     "jmp 1b\n"	// 如果锁被释放(slock>0)，跳回 1 重新尝试获取锁。注意这里需要重新获取锁，和信号量是不同的
+		     "3:\n\t"	// 锁获取成功，结束
 		     : "+m" (lock->slock) : : "memory");
 }
+// MetaMiku 有关 rep;nop 的注释参考 linux/include/asm-x86/processor_32.h
 
 /*
  * It is easier for the lock validator if interrupts are not re-enabled
@@ -88,10 +89,10 @@ static inline int __raw_spin_trylock(raw_spinlock_t *lock)
 {
 	char oldval;
 	asm volatile(
-		"xchgb %b0,%1"
+		"xchgb %b0,%1" // xchgb means exchange byte，用 0 将 lock->slock 置换出来存入 oldval 中，0 的初始值为 0，表示尝试获取锁
 		:"=q" (oldval), "+m" (lock->slock)
-		:"0" (0) : "memory");
-	return oldval > 0;
+		:"0" (0) : "memory"); // %b0 的初始值为 BYTE 0
+	return oldval > 0; // 如果 oldval>0，说明之前锁未被占用，获取锁成功；如果 oldval<=0，说明之前锁被占用，获取锁失败
 }
 
 /*
@@ -105,7 +106,7 @@ static inline int __raw_spin_trylock(raw_spinlock_t *lock)
 
 static inline void __raw_spin_unlock(raw_spinlock_t *lock)
 {
-	asm volatile("movb $1,%0" : "+m" (lock->slock) :: "memory");
+	asm volatile("movb $1,%0" : "+m" (lock->slock) :: "memory"); // 释放锁，直接将 slock 置为 1，表示锁未被占用，注意区分与信号量的不同
 }
 
 #else
@@ -123,7 +124,7 @@ static inline void __raw_spin_unlock(raw_spinlock_t *lock)
 
 static inline void __raw_spin_unlock_wait(raw_spinlock_t *lock)
 {
-	while (__raw_spin_is_locked(lock))
+	while (__raw_spin_is_locked(lock)) // 就一直等啊～
 		cpu_relax();
 }
 

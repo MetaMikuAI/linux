@@ -80,8 +80,8 @@ unsigned long __lockfunc _spin_lock_irqsave(spinlock_t *lock)
 {
 	unsigned long flags;
 
-	local_irq_save(flags);
-	preempt_disable();
+	local_irq_save(flags); // 关中断并保存 PSW，对应 _spin_unlock_irqrestore 中的 local_irq_restore，关中断确保在获取锁的过程中不会被中断打断进而被中断服务程序抢锁导致死锁
+	preempt_disable(); // 关抢占，对应 _spin_unlock_irqrestore 中的 preempt_enable，在软件层面进一步标记原子上下文确保获取锁的过程不会被打断，一方面防止抢锁，另一方面避免其他进程长时自旋
 	spin_acquire(&lock->dep_map, 0, 0, _RET_IP_);
 	/*
 	 * On lockdep we dont want the hand-coded irq-enable of
@@ -91,7 +91,7 @@ unsigned long __lockfunc _spin_lock_irqsave(spinlock_t *lock)
 #ifdef CONFIG_LOCKDEP
 	LOCK_CONTENDED(lock, _raw_spin_trylock, _raw_spin_lock);
 #else
-	_raw_spin_lock_flags(lock, &flags);
+	_raw_spin_lock_flags(lock, &flags); // 获取锁，失败则进入等待循环，期间会开中断
 #endif
 	return flags;
 }
@@ -343,10 +343,10 @@ EXPORT_SYMBOL(_read_unlock);
 
 void __lockfunc _spin_unlock_irqrestore(spinlock_t *lock, unsigned long flags)
 {
-	spin_release(&lock->dep_map, 1, _RET_IP_);
+	spin_release(&lock->dep_map, 1, _RET_IP_); // 释放锁
 	_raw_spin_unlock(lock);
-	local_irq_restore(flags);
-	preempt_enable();
+	local_irq_restore(flags);	// 开中断，对应 _spin_lock_irqsave 中的 local_irq_save
+	preempt_enable();	// 开抢占，对应 _spin_lock_irqsave 中的 preempt_disable
 }
 EXPORT_SYMBOL(_spin_unlock_irqrestore);
 

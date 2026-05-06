@@ -281,6 +281,7 @@ do {						\
 	spin_trylock(lock) ? \
 	1 : ({ local_irq_restore(flags); 0; }); \
 })
+// 注意没拿到锁需要开中断
 
 #define write_trylock_irqsave(lock, flags) \
 ({ \

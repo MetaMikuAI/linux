@@ -497,6 +497,12 @@ static inline void rep_nop(void)
 }
 
 #define cpu_relax()	rep_nop()
+// rep;nop = F3 90 = pause，表示 CPU 进行空操作
+// 加 memory 选项可能是为了告诉编译器不要对内存操作进行重排序，确保在执行 rep;nop 之前的内存操作已经完成，这对于自旋锁等同步机制非常重要。
+// 有关 rep;nop 我找到了一篇文章 https://stackoverflow.com/questions/7086220/what-does-rep-nop-mean-in-x86-assembly-is-it-the-same-as-the-pause-instru
+// 其中提到了一篇 2005 年的邮件 http://www.x86-64.org/pipermail/discuss/2005-March/005800.html
+// 但 www.x86-64.org 现在已被指向到 www.amd.com，我已无法进行溯源了。
+
 
 static inline void native_load_esp0(struct tss_struct *tss, struct thread_struct *thread)
 {
