@@ -124,6 +124,9 @@ static inline void alternatives_smp_switch(int smp) {}
  * and size information.  That keeps the table sizes small.
  */
 
+// Uni-Processor: 单核处理器
+// Symmetric Multi-Processor: 对称多处理器
+
 #ifdef CONFIG_SMP
 #define LOCK_PREFIX \
 		".section .smp_locks,\"a\"\n"	\
@@ -131,6 +134,8 @@ static inline void alternatives_smp_switch(int smp) {}
 		"  .long 661f\n" /* address */	\
 		".previous\n"			\
 	       	"661:\n\tlock; "
+
+// lock; 前缀指令，告诉CPU在执行后续指令时需要获取总线锁，以确保在多处理器环境中对共享资源的访问是原子的。 
 
 #else /* ! CONFIG_SMP */
 #define LOCK_PREFIX ""

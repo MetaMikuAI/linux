@@ -142,6 +142,7 @@ static inline unsigned long __cmpxchg(volatile void *ptr, unsigned long old,
 	}
 	return old;
 }
+// cmpxchg 表示 compare and exchange，即将内存地址 ptr 中的值与 old 进行比较，如果相等则将 new 存入 ptr 中，并返回 ptr 中原来的值。
 
 /*
  * Always use locked operations when touching memory shared with a

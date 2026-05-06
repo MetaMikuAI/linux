@@ -10,6 +10,8 @@
  * resource counting etc..
  */
 
+// 这个文件定义了在 i386 架构上实现原子操作的函数和宏，使用了内联汇编来确保这些操作的原子性和正确性。
+
 /*
  * Make sure gcc doesn't try to be clever and move things around
  * on us. We need to use _exactly_ the address the user gave us,
@@ -50,6 +52,13 @@ static __inline__ void atomic_add(int i, atomic_t *v)
 		:"+m" (v->counter)
 		:"ir" (i));
 }
+// __volatile__: 告诉编译器不要优化掉/删除/移动这段 asm
+// m 表示内存操作数，告诉编译器这个操作数是一个内存地址，编译器会生成相应的指令来访问这个内存地址。
+// + 表示这个操作数是一个读写操作数，编译器会确保在生成的代码中正确处理这个操作数的读写。
+// i 表示立即数操作数，告诉编译器这个操作数是一个常量值，编译器会直接将这个值嵌入到生成的指令中。
+// r 表示寄存器操作数，告诉编译器这个操作数可以使用寄存器来存储，编译器会选择一个合适的寄存器来存放这个值。
+// 最终将编译出形如 addl $4, (%eax) 的指令，其中 $i 是立即数，(%eax) 是内存地址(间接寻址)。
+// 注意为 AT&T 风格，操作数顺序与 Intel 风格相反，即源操作数在前，目的操作数在后。 
 
 /**
  * atomic_sub - subtract integer from atomic variable
@@ -85,6 +94,11 @@ static __inline__ int atomic_sub_and_test(int i, atomic_t *v)
 		:"ir" (i) : "memory");
 	return c;
 }
+// sete 表示 SET if Equal, 根据 ZF 标志位设置目标寄存器的值，如果 ZF=1 则设置为 1，否则设置为 0
+// = 表示只写（输出）
+// q 表示这个操作数可以使用 eax/ebx/ecx/edx 四个通用寄存器的 8bit-LSB (即 al/bl/cl/dl) 来存储，编译器会选择一个合适的寄存器来存放这个值。
+// 这句汇编实现了先执行 subl 再返回 c 的值的原子操作
+
 
 /**
  * atomic_inc - increment atomic variable
@@ -98,6 +112,7 @@ static __inline__ void atomic_inc(atomic_t *v)
 		LOCK_PREFIX "incl %0"
 		:"+m" (v->counter));
 }
+// incl 表示 increment long，即将操作数加 1，结果存回操作数所在的内存地址中。
 
 /**
  * atomic_dec - decrement atomic variable
@@ -169,6 +184,7 @@ static __inline__ int atomic_add_negative(int i, atomic_t *v)
 		:"ir" (i) : "memory");
 	return c;
 }
+// sets 表示 SET if Sign, 根据 SF 标志位设置目标寄存器的值，如果 SF=1 则设置为 1，否则设置为 0
 
 /**
  * atomic_add_return - add integer and return
@@ -202,6 +218,11 @@ no_xadd: /* Legacy 386 processor */
 	return i + __i;
 #endif
 }
+// xaddl 表示 exchange and add long，即将操作数 i 加到内存地址 v->counter 中，并将原来的值存回 i 中，最后返回 i + __i 的结果。
+// 386 处理器不支持 xadd 指令，因此需要使用关中断来保证原子性
+// local_irq_save 关中断，local_irq_restore 开中断
+// 但是这样似乎 386 的用户程序无法使用 atomic_add_return 了，因为用户程序无法操作中断标志位 (?)
+// memory 表示告诉编译器这个 asm 可能会修改内存中的数据，编译器在优化时会考虑到这一点，避免将内存相关的操作移动到这个 asm 的前面或后面，以确保内存访问的正确性。
 
 /**
  * atomic_sub_return - subtract integer and return
@@ -214,6 +235,7 @@ static __inline__ int atomic_sub_return(int i, atomic_t *v)
 {
 	return atomic_add_return(-i,v);
 }
+// 哇哦
 
 #define atomic_cmpxchg(v, old, new) (cmpxchg(&((v)->counter), (old), (new)))
 #define atomic_xchg(v, new) (xchg(&((v)->counter), (new)))
@@ -241,6 +263,9 @@ static __inline__ int atomic_add_unless(atomic_t *v, int a, int u)
 	}
 	return c != (u);
 }
+// 这个函数的作用是：如果 v 的值不等于 u，则将 a 加到 v 上，并返回非零；否则返回零。
+// likely(old == c) 表示 c 是 v 的当前值，如果 old != c，说明 v 的值在我们读取后被其他线程修改了，我们需要重新读取 v 的值并尝试再次进行比较和交换，直到成功或者发现 v 的值已经等于 u。
+// 这是一种无锁的方式来实现条件加法，避免了使用锁带来的性能开销。好精妙的实现……
 
 #define atomic_inc_not_zero(v) atomic_add_unless((v), 1, 0)
 

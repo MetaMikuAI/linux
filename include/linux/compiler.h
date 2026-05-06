@@ -59,6 +59,8 @@ extern void __chk_io_ptr(const volatile void __iomem *);
 
 #define likely(x)	__builtin_expect(!!(x), 1)
 #define unlikely(x)	__builtin_expect(!!(x), 0)
+// 双取反确保 x 的值被转换为 0 或 1
+// __builtin_expect 是 GCC 提供的一个内置函数，用于告诉编译器某个条件表达式的结果更可能是 true 还是 false，从而帮助编译器进行优化。 likely(x) 表示 x 更可能为真，unlikely(x) 表示 x 更可能为假。
 
 /* Optimization barrier */
 #ifndef barrier
